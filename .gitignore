@@ -1,0 +1,10 @@
+__pycache__/
+.ipynb_checkpoints
+celerybeat-schedule
+celerybeat.pid
+*.db
+.venv
+.mypy_cache/
+.idea/
+llm_worker/models
+*.log
