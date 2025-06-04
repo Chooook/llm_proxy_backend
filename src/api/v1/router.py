@@ -2,15 +2,19 @@ import asyncio
 import json
 import uuid
 from datetime import datetime
+from pathlib import Path
 
 from aioredis import Redis
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
 from utils.auth_utils import get_current_user
 from utils.task_short_id import generate_short_id
 from schemas.task import TaskCreate
+from schemas.feedback import FeedbackItem
+
+FEEDBACK_FILE = Path(__file__).parent / 'feedback.json'
 
 router = APIRouter(prefix='/api/v1')
 
@@ -46,7 +50,7 @@ async def subscribe_stream_status(request: Request, task_id: str):
         while True:
             raw_task = await redis.get(f'task:{task_id}')
             if not raw_task:
-                in_dead_letters = await redis.lpos("dead_letters", task_id)
+                in_dead_letters = await redis.lpos('dead_letters', task_id)
                 if in_dead_letters is not None:
                     yield json.dumps(in_dead_letters)
                 break
@@ -60,7 +64,7 @@ async def subscribe_stream_status(request: Request, task_id: str):
     return EventSourceResponse(event_generator())
 
 
-@router.get('/tasks/')
+@router.get('/tasks')
 async def list_queued_tasks_by_user(request: Request):
     redis: Redis = request.app.state.redis
     user_id = await get_current_user(request, redis)
@@ -96,3 +100,39 @@ async def list_queued_tasks_by_user(request: Request):
             break
     tasks.sort(key=lambda t: t['queued_at'])
     return JSONResponse(tasks)
+
+
+@router.post('/feedback')
+async def submit_feedback(feedback: FeedbackItem):
+    """Endpoint для сохранения обратной связи"""
+
+    def ensure_feedback_file_exists():
+        """Создать файл для хранения отзывов, если он не существует"""
+        if not FEEDBACK_FILE.exists():
+            with open(FEEDBACK_FILE, 'w', encoding='utf-8') as f:
+                json.dump([], f, ensure_ascii=False, indent=2)
+
+    ensure_feedback_file_exists()
+
+    try:
+        with open(FEEDBACK_FILE, 'r', encoding='utf-8') as f:
+            feedbacks = json.load(f)
+
+        new_feedback = {
+            'text': feedback.text,
+            'contact': feedback.contact,
+            'timestamp': datetime.now().isoformat()
+        }
+        feedbacks.append(new_feedback)
+
+        with open(FEEDBACK_FILE, 'w', encoding='utf-8') as f:
+            json.dump(feedbacks, f, ensure_ascii=False, indent=2)
+
+        return JSONResponse({
+            'status': 'success', 'message': 'Feedback received'})
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Failed to save feedback: {str(e)}'
+        )
