@@ -4,13 +4,13 @@ from pydantic import BaseModel
 
 
 class TaskType(str, Enum):
-    GENERATE_WITH_API = 'generate_api'
+    DUMMY = 'dummy'
     GENERATE_WITH_LOCAL = 'generate_local'
-    GENERATE_WITH_GP = 'generate_gp'
-    SEARCH_IN_KNOWLEDGE_BASE = 'search_in_kb'
+    SEARCH_IN_KNOWLEDGE_BASE = 'search'
+    GENERATE_WITH_PM = 'generate_pm'
+    GENERATE_WITH_SPC = 'generate_spc'
+    GENERATE_WITH_OAPSO = 'generate_oapso'
 
 class TaskCreate(BaseModel):
     prompt: str
-    # TODO: replace with real user id when authentication is implemented:
-    user_id: str = 'localuser'
     task_type: TaskType = TaskType.GENERATE_WITH_LOCAL
