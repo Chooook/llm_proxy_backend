@@ -1,6 +1,7 @@
 import asyncio
 import json
 import uuid
+from datetime import datetime
 
 from aioredis import Redis
 from fastapi import APIRouter, Request
@@ -27,13 +28,14 @@ async def enqueue_task(request: Request, task: TaskCreate):
         json.dumps({
             'status': 'queued',
             'prompt': task.prompt.strip(),
-            'type': task.task_type,
+            'task_type': task.task_type,
             'user_id': user_id,
-            'short_task_id': short_id
+            'short_task_id': short_id,
+            'queued_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
         })
     )
     await redis.rpush('task_queue', task_id)
-    return JSONResponse({'task_id': task_id, 'short_id': short_id})
+    return JSONResponse({'task_id': task_id, 'short_task_id': short_id})
 
 
 @router.get('/subscribe/{task_id}')
@@ -84,10 +86,13 @@ async def list_queued_tasks_by_user(request: Request):
                     'status': task['status'],
                     'prompt': task['prompt'],
                     'result': str(task.get('result')),
-                    'type': task['type'],
+                    'error': str(task.get('error')),
+                    'task_type': task['task_type'],
                     'user_id': task['user_id'],
-                    'short_task_id': task['short_task_id']
+                    'short_task_id': task['short_task_id'],
+                    'queued_at': task['queued_at'],
                     })
         if cursor == 0:
             break
+    tasks.sort(key=lambda t: t['queued_at'])
     return JSONResponse(tasks)
