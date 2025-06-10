@@ -85,17 +85,8 @@ async def list_queued_tasks_by_user(request: Request):
             except json.JSONDecodeError:
                 continue
             if task['user_id'] == user_id:
-                tasks.append({
-                    'task_id': task_id.split(':')[1],
-                    'status': task['status'],
-                    'prompt': task['prompt'],
-                    'result': str(task.get('result')),
-                    'error': str(task.get('error')),
-                    'task_type': task['task_type'],
-                    'user_id': task['user_id'],
-                    'short_task_id': task['short_task_id'],
-                    'queued_at': task['queued_at'],
-                    })
+                task['task_id'] = task_id.split(':')[1]
+                tasks.append(task)
         if cursor == 0:
             break
     tasks.sort(key=lambda t: t['queued_at'])
