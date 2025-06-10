@@ -1,7 +1,7 @@
 import asyncio
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from aioredis import Redis
@@ -35,7 +35,7 @@ async def enqueue_task(request: Request, task: TaskCreate):
             'task_type': task.task_type,
             'user_id': user_id,
             'short_task_id': short_id,
-            'queued_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
+            'queued_at': datetime.now(timezone.utc).isoformat(),
         })
     )
     await redis.rpush('task_queue', task_id)
