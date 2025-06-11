@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_DAYS: int = 90
     JWT_ALGORITHM: str = 'HS256'
     SECRET_KEY: str
+    GP_HOST: str
+    GP_PORT: int
+    GP_DATABASE: str
+    GP_SCHEMA: str
 
     class Config:
         env_file = '../.env'
