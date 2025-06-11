@@ -89,7 +89,7 @@ async def list_queued_tasks_by_user(request: Request):
                 tasks.append(task)
         if cursor == 0:
             break
-    tasks.sort(key=lambda t: t['queued_at'])
+    tasks.sort(key=lambda t: datetime.fromisoformat(t['queued_at']))
     return JSONResponse(tasks)
 
 
