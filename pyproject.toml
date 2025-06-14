@@ -5,7 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "aioredis>=2.0.1",
     "fastapi>=0.115.12",
     "loguru>=0.7.3",
     "python-jose[cryptography]>=3.4.0",
