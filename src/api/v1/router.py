@@ -7,12 +7,13 @@ from pathlib import Path
 from aioredis import Redis
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 from sse_starlette.sse import EventSourceResponse
 
+from schemas.feedback import FeedbackItem
+from schemas.task import TaskCreate, Task
 from utils.auth_utils import get_current_user
 from utils.task_short_id import generate_short_id
-from schemas.task import TaskCreate
-from schemas.feedback import FeedbackItem
 
 FEEDBACK_FILE = Path(__file__).parent / 'feedback.json'
 
@@ -21,23 +22,22 @@ router = APIRouter(prefix='/api/v1')
 
 @router.post('/enqueue')
 async def enqueue_task(request: Request, task: TaskCreate):
-    redis: Redis = request.app.state.redis
+    redis: Redis = request.app.state.redis  # TODO: use as Depends everywhere
     user_id = await get_current_user(request, redis)
     task_id = str(uuid.uuid4())
     short_id = generate_short_id(task_id, user_id)
+    task_to_enqueue = Task(
+        task_id=task_id,
+        status='queued',
+        prompt=task.prompt.strip(),
+        task_type=task.task_type,
+        user_id=user_id,
+        short_task_id=short_id,
+        queued_at=datetime.now(timezone.utc).isoformat(),
+    )
 
     await redis.setex(
-        f'task:{task_id}',
-        3600,
-        json.dumps({
-            'status': 'queued',
-            'prompt': task.prompt.strip(),
-            'task_type': task.task_type,
-            'user_id': user_id,
-            'short_task_id': short_id,
-            'queued_at': datetime.now(timezone.utc).isoformat(),
-        })
-    )
+        f'task:{task_id}', 3600, task_to_enqueue.model_dump_json())
     await redis.rpush('task_queue', task_id)
     return JSONResponse({'task_id': task_id, 'short_task_id': short_id})
 
@@ -52,13 +52,14 @@ async def subscribe_stream_status(request: Request, task_id: str):
             if not raw_task:
                 in_dead_letters = await redis.lpos('dead_letters', task_id)
                 if in_dead_letters is not None:
+                    # TODO: check are tasks can be in dead letters
                     yield json.dumps(in_dead_letters)
                 break
-            task = json.loads(raw_task)
-            if task['status'] != last_status:
-                yield json.dumps(task)
-                last_status = task['status']
-            if task['status'] in ['completed', 'failed']:
+            task = Task.model_validate_json(raw_task)
+            if task.status != last_status:
+                yield task.model_dump_json()
+                last_status = task.status
+            if task.status in ['completed', 'failed']:
                 break
             await asyncio.sleep(1)
     return EventSourceResponse(event_generator())
@@ -68,7 +69,7 @@ async def subscribe_stream_status(request: Request, task_id: str):
 async def list_queued_tasks_by_user(request: Request):
     redis: Redis = request.app.state.redis
     user_id = await get_current_user(request, redis)
-    tasks: list[dict] = []
+    tasks: list[Task] = []
     if not user_id:
         return JSONResponse(tasks)
     cursor = 0
@@ -79,18 +80,17 @@ async def list_queued_tasks_by_user(request: Request):
                 raw_task = await redis.get(task_id)
                 if not raw_task:
                     continue
-                task = json.loads(raw_task)
-                if not task:
-                    continue
-            except json.JSONDecodeError:
+                task = Task.model_validate_json(raw_task)
+            except ValidationError as e:
+                print(e, flush=True)  # TODO: add loguru
                 continue
-            if task['user_id'] == user_id:
-                task['task_id'] = task_id.split(':')[1]
+            if task.user_id == user_id:
                 tasks.append(task)
         if cursor == 0:
             break
-    tasks.sort(key=lambda t: datetime.fromisoformat(t['queued_at']))
-    return JSONResponse(tasks)
+    tasks.sort(key=lambda t: datetime.fromisoformat(t.queued_at))
+    tasks_as_json = [task.model_dump_json() for task in tasks]
+    return JSONResponse(tasks_as_json)
 
 
 @router.post('/feedback')
