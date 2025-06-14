@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
-import aioredis
+from redis import RedisError
+from redis.asyncio import Redis
 from fastapi import FastAPI, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from jose import JWTError, jwt
@@ -15,13 +16,12 @@ FRONTEND_URL = f'http://{settings.HOST}:{settings.FRONTEND_PORT}'
 
 @asynccontextmanager
 async def lifespan(fastapi_app: FastAPI):
-    host = settings.HOST
-    port = settings.REDIS_PORT
-    db = settings.REDIS_DB
     try:
-        fastapi_app.state.redis = aioredis.Redis.from_url(
-            f'redis://{host}:{port}/{db}', decode_responses=True)
-    except aioredis.RedisError as e:
+        fastapi_app.state.redis = Redis(host=settings.HOST,
+                                        port=settings.REDIS_PORT,
+                                        db=settings.REDIS_DB,
+                                        decode_responses=True)
+    except RedisError as e:
         print(e, flush=True)
         raise
     yield

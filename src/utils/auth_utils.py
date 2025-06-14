@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import uuid
 
-from aioredis import Redis
+from redis.asyncio import Redis
 from jose import jwt, JWTError
 from fastapi import HTTPException, Request
 
