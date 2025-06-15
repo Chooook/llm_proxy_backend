@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from redis.asyncio import Redis
 from sse_starlette.sse import EventSourceResponse
 
-from schemas.feedback import FeedbackItem
+from schemas.feedback import FeedbackItem, TaskFeedback
 from schemas.task import Task, TaskCreate
 from utils.auth_utils import get_current_user
 from utils.redis_utils import set_task_to_queue, update_task_position
@@ -52,6 +52,18 @@ async def subscribe_stream_status(request: Request, task_id: str):
                 break
             await asyncio.sleep(1)
     return EventSourceResponse(event_generator())
+
+
+@router.post('/feedback/{task_id}')
+async def submit_task_feedback(
+        request: Request, task_id: str, feedback: TaskFeedback):
+    redis: Redis = request.app.state.redis
+    user_id = await get_current_user(request, redis)
+    task = Task.model_validate_json(await redis.get(f'task:{task_id}'))
+    if task.user_id != user_id:
+        raise HTTPException(status_code=403, detail='Forbidden')
+    task.feedback = feedback
+    await redis.setex(f'task:{task_id}', 3600, task.model_dump_json())
 
 
 @router.get('/tasks')
