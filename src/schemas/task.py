@@ -3,6 +3,7 @@ from enum import Enum
 from pydantic import BaseModel
 
 from schemas.answer import Answer
+from schemas.feedback import TaskFeedbackType, TaskFeedback
 
 
 class TaskType(str, Enum):
@@ -34,3 +35,4 @@ class Task(BaseModel):
     error: Answer = Answer(text='')
     start_position: int = 0
     current_position: int = 0
+    feedback: TaskFeedback = TaskFeedbackType.NEUTRAL
