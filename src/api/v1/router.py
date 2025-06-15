@@ -1,20 +1,18 @@
 import asyncio
 import json
-import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
-from redis.asyncio import Redis
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from redis.asyncio import Redis
 from sse_starlette.sse import EventSourceResponse
 
 from schemas.feedback import FeedbackItem
-from schemas.task import TaskCreate, Task
+from schemas.task import Task, TaskCreate
 from utils.auth_utils import get_current_user
-from utils.redis_utils import update_task_position
-from utils.task_short_id import generate_short_id
+from utils.redis_utils import set_task_to_queue, update_task_position
 
 FEEDBACK_FILE = Path(__file__).parent / 'feedback.json'
 
@@ -25,29 +23,13 @@ router = APIRouter(prefix='/api/v1')
 async def enqueue_task(request: Request, task: TaskCreate):
     redis: Redis = request.app.state.redis  # TODO: use as Depends everywhere
     user_id = await get_current_user(request, redis)
-    task_id = str(uuid.uuid4())
-    short_id = generate_short_id(task_id, user_id)
-    start_position = await redis.llen('task_queue')
-    task_to_enqueue = Task(
-        task_id=task_id,
-        status='queued',
-        prompt=task.prompt.strip(),
-        task_type=task.task_type,
-        user_id=user_id,
-        short_task_id=short_id,
-        queued_at=datetime.now(timezone.utc).isoformat(),
-        start_position=start_position,
-    )
-
-    await redis.setex(
-        f'task:{task_id}', 3600, task_to_enqueue.model_dump_json())
-    await redis.lpush('task_queue', task_id)
+    task_id, short_id = await set_task_to_queue(user_id, task, redis)
     return JSONResponse({'task_id': task_id, 'short_task_id': short_id})
 
 
 @router.get('/subscribe/{task_id}')
 async def subscribe_stream_status(request: Request, task_id: str):
-    redis: Redis = request.app.state.redis
+    redis: Redis = request.app.state.redis  # TODO: use as Depends everywhere
     async def event_generator():
         last_status = ''
         last_position = -1
@@ -107,8 +89,8 @@ async def submit_feedback(feedback: FeedbackItem):
     def ensure_feedback_file_exists():
         """Создать файл для хранения отзывов, если он не существует"""
         if not FEEDBACK_FILE.exists():
-            with open(FEEDBACK_FILE, 'w', encoding='utf-8') as f:
-                json.dump([], f, ensure_ascii=False, indent=2)
+            with open(FEEDBACK_FILE, 'w', encoding='utf-8') as fb_file:
+                json.dump([], fb_file, ensure_ascii=False, indent=2)
 
     ensure_feedback_file_exists()
 
