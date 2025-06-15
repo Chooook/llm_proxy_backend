@@ -33,22 +33,22 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_URL],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=['*'],
+    allow_headers=['*'],
 )
 
-@app.middleware("http")
+@app.middleware('http')
 async def refresh_jwt_token(request: Request, call_next):
     secret_key = settings.SECRET_KEY
     algorithm = settings.JWT_ALGORITHM
     redis = app.state.redis
-    token = request.cookies.get("access_token")
+    token = request.cookies.get('access_token')
     if token:
         try:
             payload = jwt.decode(token, secret_key, algorithms=[algorithm])
-            user_id = payload.get("sub")
-            if user_id and await redis.get(f"token:{token}") == user_id:
-                await redis.expire(f"token:{token}", 90 * 24 * 3600)
+            user_id = payload.get('sub')
+            if user_id and await redis.get(f'token:{token}') == user_id:
+                await redis.expire(f'token:{token}', 90 * 24 * 3600)
         except JWTError:
             pass
 
@@ -57,31 +57,31 @@ async def refresh_jwt_token(request: Request, call_next):
 
 app.include_router(v1_router)
 
-@app.get("/")
+@app.get('/')
 async def root(request: Request, response: Response):
     access_token_expire_seconds = settings.ACCESS_TOKEN_EXPIRE_DAYS * 24 * 3600
     redis = app.state.redis
-    token = request.cookies.get("access_token")
+    token = request.cookies.get('access_token')
 
     if not token:
         user_id = create_guest_user()
-        token = create_access_token(data={"sub": user_id})
-        await redis.setex(f"token:{token}", 90 * 24 * 3600, user_id)
+        token = create_access_token(data={'sub': user_id})
+        await redis.setex(f'token:{token}', 90 * 24 * 3600, user_id)
     else:
         try:
             await renew_token(token, redis)
 
         except JWTError:
             user_id = create_guest_user()
-            token = create_access_token(data={"sub": user_id})
+            token = create_access_token(data={'sub': user_id})
             await redis.setex(
-                f"token:{token}", access_token_expire_seconds, user_id)
+                f'token:{token}', access_token_expire_seconds, user_id)
 
     response.set_cookie(
-        key="access_token",
+        key='access_token',
         value=token,
         httponly=True,
         secure=False,
-        samesite="lax",
+        samesite='lax',
         max_age=90 * 24 * 3600,
     )

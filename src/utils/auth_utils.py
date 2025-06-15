@@ -25,30 +25,30 @@ def create_access_token(data: dict):
 
 
 async def get_current_user(request: Request, redis: Redis):
-    token = request.cookies.get("access_token")
+    token = request.cookies.get('access_token')
     if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        raise HTTPException(status_code=401, detail='Not authenticated')
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
+        user_id: str = payload.get('sub')
         if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
+            raise HTTPException(status_code=401, detail='Invalid token')
 
-        stored_user_id = await redis.get(f"token:{token}")
+        stored_user_id = await redis.get(f'token:{token}')
         if stored_user_id != user_id:
             raise HTTPException(
-                status_code=401, detail="Token invalid or revoked")
+                status_code=401, detail='Token invalid or revoked')
 
         return user_id
 
     except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail='Invalid token')
 
 async def renew_token(token: str, redis: Redis):
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    user_id = payload.get("sub")
-    if not user_id or await redis.get(f"token:{token}") != user_id:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    user_id = payload.get('sub')
+    if not user_id or await redis.get(f'token:{token}') != user_id:
+        raise HTTPException(status_code=401, detail='Invalid token')
 
-    await redis.expire(f"token:{token}", 90 * 24 * 3600)
+    await redis.expire(f'token:{token}', 90 * 24 * 3600)
