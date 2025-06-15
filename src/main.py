@@ -2,13 +2,12 @@ from contextlib import asynccontextmanager
 
 from redis import RedisError
 from redis.asyncio import Redis
-from fastapi import FastAPI, Response, Request
+from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from jose import JWTError, jwt
 
 from api.v1.router import router as v1_router
-from utils.auth_utils import (
-    create_guest_user, create_access_token, renew_token)
+from utils.auth_utils import renew_token, store_new_token
 from settings import settings
 
 FRONTEND_URL = f'http://{settings.HOST}:{settings.FRONTEND_PORT}'
@@ -59,23 +58,19 @@ app.include_router(v1_router)
 
 @app.get('/')
 async def root(request: Request, response: Response):
-    access_token_expire_seconds = settings.ACCESS_TOKEN_EXPIRE_DAYS * 24 * 3600
     redis = app.state.redis
     token = request.cookies.get('access_token')
 
     if not token:
-        user_id = create_guest_user()
-        token = create_access_token(data={'sub': user_id})
-        await redis.setex(f'token:{token}', 90 * 24 * 3600, user_id)
+        token = await store_new_token(redis)
+        new_user = True
     else:
         try:
             await renew_token(token, redis)
-
-        except JWTError:
-            user_id = create_guest_user()
-            token = create_access_token(data={'sub': user_id})
-            await redis.setex(
-                f'token:{token}', access_token_expire_seconds, user_id)
+            new_user = False
+        except HTTPException:
+            new_user = True
+            token = await store_new_token(redis)
 
     response.set_cookie(
         key='access_token',
@@ -85,3 +80,6 @@ async def root(request: Request, response: Response):
         samesite='lax',
         max_age=90 * 24 * 3600,
     )
+    if new_user:
+        response.status_code = 303
+        response.headers['location'] = '/'

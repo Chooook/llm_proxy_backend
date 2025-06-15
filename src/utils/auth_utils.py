@@ -24,6 +24,13 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 
+async def store_new_token(redis: Redis):
+    user_id = create_guest_user()
+    token = create_access_token(data={'sub': user_id})
+    await redis.setex(f'token:{token}', 90 * 24 * 3600, user_id)
+    return token
+
+
 async def get_current_user(request: Request, redis: Redis):
     token = request.cookies.get('access_token')
     if not token:
@@ -45,10 +52,15 @@ async def get_current_user(request: Request, redis: Redis):
     except JWTError:
         raise HTTPException(status_code=401, detail='Invalid token')
 
+
 async def renew_token(token: str, redis: Redis):
-    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    user_id = payload.get('sub')
-    if not user_id or await redis.get(f'token:{token}') != user_id:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get('sub')
+        if not user_id or await redis.get(f'token:{token}') != user_id:
+            raise
+    except Exception:
         raise HTTPException(status_code=401, detail='Invalid token')
+
 
     await redis.expire(f'token:{token}', 90 * 24 * 3600)
