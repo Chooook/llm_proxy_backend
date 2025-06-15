@@ -38,7 +38,7 @@ async def enqueue_task(request: Request, task: TaskCreate):
 
     await redis.setex(
         f'task:{task_id}', 3600, task_to_enqueue.model_dump_json())
-    await redis.rpush('task_queue', task_id)
+    await redis.lpush('task_queue', task_id)
     return JSONResponse({'task_id': task_id, 'short_task_id': short_id})
 
 
