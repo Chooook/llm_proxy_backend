@@ -1,16 +1,23 @@
+import time
 from contextlib import asynccontextmanager
 
-from redis import RedisError
-from redis.asyncio import Redis
-from fastapi import FastAPI, HTTPException, Response, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from jose import JWTError, jwt
+from loguru import logger
+from redis import RedisError
+from redis.asyncio import Redis
 
 from api.v1.router import router as v1_router
-from utils.auth_utils import renew_token, store_new_token
 from settings import settings
+from utils.auth_utils import renew_token, store_new_token
 
 FRONTEND_URL = f'http://{settings.HOST}:{settings.FRONTEND_PORT}'
+
+logger.add('backend.log',
+           level=settings.LOGLEVEL,
+           format='{time} | {level} | {name}:{function}:{line} - {message}',
+           rotation='10 MB')
 
 
 @asynccontextmanager
@@ -21,10 +28,11 @@ async def lifespan(fastapi_app: FastAPI):
                                         db=settings.REDIS_DB,
                                         decode_responses=True)
     except RedisError as e:
-        print(e, flush=True)
+        logger.error(f'Ошибка redis: {e}')
         raise
     yield
     await fastapi_app.state.redis.close()
+
 
 app = FastAPI(debug=settings.DEBUG, lifespan=lifespan)
 
@@ -35,6 +43,7 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+
 
 @app.middleware('http')
 async def refresh_jwt_token(request: Request, call_next):
@@ -54,7 +63,26 @@ async def refresh_jwt_token(request: Request, call_next):
     response = await call_next(request)
     return response
 
+
+@app.middleware('http')
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = (time.time() - start_time) * 1000
+
+    log_message = (
+        f'{request.client.host}:{request.client.port} - '
+        f'{request.method} {request.url.path} '
+        f'HTTP/{request.scope["http_version"]} '
+        f'{response.status_code}'
+        f' | {process_time:.2f} ms'
+    )
+    logger.info(log_message)
+    return response
+
+
 app.include_router(v1_router)
+
 
 @app.get('/')
 async def root(request: Request, response: Response):

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+from loguru import logger
 from pydantic import ValidationError
 from redis.asyncio import Redis
 from sse_starlette.sse import EventSourceResponse
@@ -70,7 +71,7 @@ async def list_queued_tasks_by_user(request: Request):
                     continue
                 task = Task.model_validate_json(raw_task)
             except ValidationError as e:
-                print(e, flush=True)
+                logger.warning(f'Ошибка валидации задачи {task_id}: {e}')
                 continue
             if task.user_id == user_id:
                 tasks.append(task)
