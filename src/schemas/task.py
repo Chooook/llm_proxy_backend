@@ -22,7 +22,7 @@ class TaskCreate(BaseModel):
 class Task(BaseModel):
     task_id: str = ''
     prompt: str
-    status: str = ''  # TODO: add TaskStatus Enum model
+    status: str = ''
     task_type: TaskType = ''
     user_id: str = ''
     short_task_id: str = ''

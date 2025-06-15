@@ -21,7 +21,7 @@ router = APIRouter(prefix='/api/v1')
 
 @router.post('/enqueue')
 async def enqueue_task(request: Request, task: TaskCreate):
-    redis: Redis = request.app.state.redis  # TODO: use as Depends everywhere
+    redis: Redis = request.app.state.redis
     user_id = await get_current_user(request, redis)
     task_id, short_id = await set_task_to_queue(user_id, task, redis)
     return JSONResponse({'task_id': task_id, 'short_task_id': short_id})
@@ -29,7 +29,7 @@ async def enqueue_task(request: Request, task: TaskCreate):
 
 @router.get('/subscribe/{task_id}')
 async def subscribe_stream_status(request: Request, task_id: str):
-    redis: Redis = request.app.state.redis  # TODO: use as Depends everywhere
+    redis: Redis = request.app.state.redis
     async def event_generator():
         last_status = ''
         last_position = -1
@@ -39,7 +39,6 @@ async def subscribe_stream_status(request: Request, task_id: str):
             if not raw_task:
             #     dead_letters = await redis.lrange('dead_letters', 0, -1)
             #     if task_id in dead_letters:
-            #         # TODO: check are tasks can be in dead letters
             #         yield json.dumps(dead_letters)
                 break
             task = Task.model_validate_json(raw_task)
@@ -71,7 +70,7 @@ async def list_queued_tasks_by_user(request: Request):
                     continue
                 task = Task.model_validate_json(raw_task)
             except ValidationError as e:
-                print(e, flush=True)  # TODO: add loguru
+                print(e, flush=True)
                 continue
             if task.user_id == user_id:
                 tasks.append(task)
