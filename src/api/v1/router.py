@@ -13,6 +13,7 @@ from sse_starlette.sse import EventSourceResponse
 from schemas.feedback import FeedbackItem
 from schemas.task import TaskCreate, Task
 from utils.auth_utils import get_current_user
+from utils.redis_utils import update_task_position
 from utils.task_short_id import generate_short_id
 
 FEEDBACK_FILE = Path(__file__).parent / 'feedback.json'
@@ -26,6 +27,7 @@ async def enqueue_task(request: Request, task: TaskCreate):
     user_id = await get_current_user(request, redis)
     task_id = str(uuid.uuid4())
     short_id = generate_short_id(task_id, user_id)
+    start_position = await redis.llen('task_queue')
     task_to_enqueue = Task(
         task_id=task_id,
         status='queued',
@@ -34,6 +36,7 @@ async def enqueue_task(request: Request, task: TaskCreate):
         user_id=user_id,
         short_task_id=short_id,
         queued_at=datetime.now(timezone.utc).isoformat(),
+        start_position=start_position,
     )
 
     await redis.setex(
@@ -47,16 +50,20 @@ async def subscribe_stream_status(request: Request, task_id: str):
     redis: Redis = request.app.state.redis
     async def event_generator():
         last_status = ''
+        last_position = -1
         while True:
+            await update_task_position(task_id, redis)
             raw_task = await redis.get(f'task:{task_id}')
             if not raw_task:
-                in_dead_letters = await redis.lpos('dead_letters', task_id)
-                if in_dead_letters is not None:
-                    # TODO: check are tasks can be in dead letters
-                    yield json.dumps(in_dead_letters)
+            #     dead_letters = await redis.lrange('dead_letters', 0, -1)
+            #     if task_id in dead_letters:
+            #         # TODO: check are tasks can be in dead letters
+            #         yield json.dumps(dead_letters)
                 break
             task = Task.model_validate_json(raw_task)
-            if task.status != last_status:
+            status = task.status
+            position = task.current_position
+            if status != last_status or position != last_position:
                 yield task.model_dump_json()
                 last_status = task.status
             if task.status in ['completed', 'failed']:
