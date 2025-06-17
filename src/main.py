@@ -111,3 +111,13 @@ async def root(request: Request, response: Response):
     if new_user:
         response.status_code = 303
         response.headers['location'] = '/'
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app,
+                host=settings.HOST,
+                port=settings.BACKEND_PORT,
+                reload=settings.DEBUG,
+                log_config=None,
+                access_log=False)
