@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -49,6 +49,9 @@ async def subscribe_stream_status(request: Request, task_id: str):
                 yield task.model_dump_json()
                 last_status = task.status
             if task.status in ['completed', 'failed']:
+                task.finished_at = datetime.now(timezone.utc).isoformat()
+                await redis.setex(
+                    f'task:{task_id}', 86400, task.model_dump_json())
                 break
             await asyncio.sleep(1)
     return EventSourceResponse(event_generator())
