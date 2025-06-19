@@ -31,7 +31,7 @@ async def lifespan(fastapi_app: FastAPI):
         logger.error(f'Ошибка redis: {e}')
         raise
     yield
-    await fastapi_app.state.redis.close()
+    await fastapi_app.state.redis.aclose()
 
 
 app = FastAPI(debug=settings.DEBUG, lifespan=lifespan)
