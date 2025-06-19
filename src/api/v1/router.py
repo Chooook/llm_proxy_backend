@@ -38,9 +38,6 @@ async def subscribe_stream_status(request: Request, task_id: str):
             await update_task_position(task_id, redis)
             raw_task = await redis.get(f'task:{task_id}')
             if not raw_task:
-            #     dead_letters = await redis.lrange('dead_letters', 0, -1)
-            #     if task_id in dead_letters:
-            #         yield json.dumps(dead_letters)
                 break
             task = Task.model_validate_json(raw_task)
             status = task.status
@@ -131,3 +128,20 @@ async def submit_feedback(feedback: FeedbackItem):
             status_code=500,
             detail=f'Failed to save feedback: {str(e)}'
         )
+
+
+@router.get('/handlers/stream')
+async def handler_stream(request: Request):
+    redis: Redis = request.app.state.redis
+
+    async def event_generator():
+        last_data = None
+        while True:
+            handlers = await redis.get('handlers')
+            if handlers != last_data:
+                last_data = handlers
+                yield (JSONResponse(json.loads(handlers)) if handlers
+                       else JSONResponse([]))
+            await asyncio.sleep(30)
+
+    return EventSourceResponse(event_generator())
