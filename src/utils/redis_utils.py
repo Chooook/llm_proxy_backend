@@ -38,18 +38,22 @@ async def set_task_to_queue(
 
     task_id = str(uuid.uuid4())
     short_id = generate_short_id(task_id, user_id)
-    start_position = await redis.llen('task_queue')
-    task_to_enqueue = Task(
-        task_id=task_id,
-        status='queued',
-        prompt=task.prompt.strip(),
-        task_type=task.task_type,
-        user_id=user_id,
-        short_task_id=short_id,
-        queued_at=datetime.now(timezone.utc).isoformat(),
-        start_position=start_position,
-    )
-    await redis.setex(
-        f'task:{task_id}', 3600, task_to_enqueue.model_dump_json())
-    await redis.lpush('task_queue', task_id)
+
+    async with redis.pipeline() as pipe:
+        current_length = await pipe.llen('task_queue').execute()
+        start_position = current_length[0] + 1
+        task_to_enqueue = Task(
+            task_id=task_id,
+            status='queued',
+            prompt=task.prompt.strip(),
+            task_type=task.task_type,
+            user_id=user_id,
+            short_task_id=short_id,
+            queued_at=datetime.now(timezone.utc).isoformat(),
+            start_position=start_position,
+        )
+        await redis.setex(
+            f'task:{task_id}', 3600, task_to_enqueue.model_dump_json())
+        await pipe.lpush('task_queue', task_id).execute()
+
     return task_id, short_id
