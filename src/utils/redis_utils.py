@@ -1,10 +1,14 @@
+import asyncio
 import hashlib
+import json
 import uuid
 from datetime import datetime, timezone
 
+from fastapi import FastAPI
+from loguru import logger
 from redis.asyncio import Redis
 
-from schemas.task import Task, TaskCreate
+from schemas.task import Task, TaskCreate, TaskStatus
 
 
 async def update_task_position(task_id: str, redis: Redis):
@@ -57,3 +61,47 @@ async def set_task_to_queue(
         await pipe.lpush('task_queue', task_id).execute()
 
     return task_id, short_id
+
+
+
+async def update_handlers(fastapi_app: FastAPI):
+    redis: Redis = fastapi_app.state.redis
+    try:
+        while True:
+            raw_new_handlers = await redis.get('handlers')
+            new_handlers = (
+                json.loads(raw_new_handlers) if raw_new_handlers else [])
+            current_handlers = fastapi_app.state.handlers
+
+            if current_handlers != new_handlers:
+
+                new_task_types = {h['task_type'] for h in new_handlers
+                                  if h['available_workers'] > 0}
+                old_task_types = {h['task_type'] for h in current_handlers
+                                  if h['available_workers'] > 0}
+                types_removed = old_task_types - new_task_types
+                types_added = new_task_types - old_task_types
+
+                fastapi_app.state.handlers = new_handlers
+                logger.debug(f'ℹ️ Handlers updated: {new_handlers}')
+                if types_added:
+                    logger.debug(f'ℹ️ Handlers added: {types_added}')
+                if types_removed:
+                    logger.debug(f'ℹ️ Handlers removed: {types_removed}')
+
+            await asyncio.sleep(10)
+    except asyncio.CancelledError:
+        logger.error('‼️ Error during updating handlers')
+        fastapi_app.state.handlers = []
+
+
+async def cleanup_dlq(redis: Redis):
+    while True:
+        await asyncio.sleep(3600)
+        logger.info('🧹 Очистка dead_letters...')
+        dlq_length = await redis.llen('dead_letters')
+        if dlq_length > 50:
+            tasks = await redis.lrange('dead_letters', 0, -1)
+            for task_id in tasks:
+                await redis.delete(f'task:{task_id}')
+            await redis.delete('dead_letters')

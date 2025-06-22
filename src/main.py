@@ -1,3 +1,4 @@
+import asyncio
 import time
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,7 @@ from redis.asyncio import Redis
 from api.v1.router import router as v1_router
 from settings import settings
 from utils.auth_utils import renew_token, store_new_token
+from utils.redis_utils import update_handlers, cleanup_dlq
 
 FRONTEND_URL = f'http://{settings.HOST}:{settings.FRONTEND_PORT}'
 
@@ -30,6 +32,10 @@ async def lifespan(fastapi_app: FastAPI):
     except RedisError as e:
         logger.error(f'Ошибка redis: {e}')
         raise
+    fastapi_app.state.handlers = []
+    asyncio.create_task(update_handlers(fastapi_app))
+    asyncio.create_task(cleanup_dlq(fastapi_app.state.redis))
+
     yield
     await fastapi_app.state.redis.aclose()
 
@@ -49,7 +55,7 @@ app.add_middleware(
 async def refresh_jwt_token(request: Request, call_next):
     secret_key = settings.SECRET_KEY
     algorithm = settings.JWT_ALGORITHM
-    redis = app.state.redis
+    redis: Redis = app.state.redis
     token = request.cookies.get('access_token')
     if token:
         try:
@@ -86,7 +92,7 @@ app.include_router(v1_router)
 
 @app.get('/')
 async def root(request: Request, response: Response):
-    redis = app.state.redis
+    redis: Redis = app.state.redis
     token = request.cookies.get('access_token')
 
     if not token:
