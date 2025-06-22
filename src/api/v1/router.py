@@ -4,14 +4,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
 from loguru import logger
 from pydantic import ValidationError
 from redis.asyncio import Redis
 from sse_starlette.sse import EventSourceResponse
 
 from schemas.feedback import FeedbackItem, TaskFeedback
-from schemas.task import Task, TaskCreate
+from schemas.task import Task, TaskCreate, TaskStatus
 from utils.auth_utils import get_current_user
 from utils.redis_utils import set_task_to_queue, update_task_position
 
@@ -22,10 +21,9 @@ router = APIRouter(prefix='/api/v1')
 
 @router.post('/enqueue')
 async def enqueue_task(request: Request, task: TaskCreate):
-    redis: Redis = request.app.state.redis
-    user_id = await get_current_user(request, redis)
-    task_id, short_id = await set_task_to_queue(user_id, task, redis)
-    return JSONResponse({'task_id': task_id, 'short_task_id': short_id})
+    user_id = await get_current_user(request, request.app.state.redis)
+    task_id, short_id = await set_task_to_queue(user_id, task, request.app)
+    return {'task_id': task_id, 'short_task_id': short_id}
 
 
 @router.get('/subscribe/{task_id}')
@@ -43,9 +41,9 @@ async def subscribe_stream_status(request: Request, task_id: str):
             status = task.status
             position = task.current_position
             if status != last_status or position != last_position:
-                yield task.model_dump_json()
+                yield task.model_dump_json(indent=2)
                 last_status = task.status
-            if task.status in ['completed', 'failed']:
+            if task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
                 task.finished_at = datetime.now(timezone.utc).isoformat()
                 await redis.setex(
                     f'task:{task_id}', 86400, task.model_dump_json())
@@ -72,7 +70,7 @@ async def list_queued_tasks_by_user(request: Request):
     user_id = await get_current_user(request, redis)
     tasks: list[Task] = []
     if not user_id:
-        return JSONResponse(tasks)
+        return tasks
     cursor = 0
     while True:
         cursor, keys = await redis.scan(cursor, match='task:*', count=100)
@@ -90,8 +88,8 @@ async def list_queued_tasks_by_user(request: Request):
         if cursor == 0:
             break
     tasks.sort(key=lambda t: datetime.fromisoformat(t.queued_at))
-    tasks_as_json = [task.model_dump_json() for task in tasks]
-    return JSONResponse(tasks_as_json)
+    tasks_as_json = [task.model_dump_json(indent=2) for task in tasks]
+    return tasks_as_json
 
 
 @router.post('/feedback')
@@ -120,8 +118,7 @@ async def submit_feedback(feedback: FeedbackItem):
         with open(FEEDBACK_FILE, 'w', encoding='utf-8') as f:
             json.dump(feedbacks, f, ensure_ascii=False, indent=2)
 
-        return JSONResponse({
-            'status': 'success', 'message': 'Feedback received'})
+        return {'status': 'success', 'message': 'Feedback received'}
 
     except Exception as e:
         raise HTTPException(
@@ -132,16 +129,14 @@ async def submit_feedback(feedback: FeedbackItem):
 
 @router.get('/handlers/stream')
 async def handler_stream(request: Request):
-    redis: Redis = request.app.state.redis
-
+    # FIXME: если сервер остановить - frontend зависнет со старыми данными
     async def event_generator():
         last_data = None
         while True:
-            handlers = await redis.get('handlers')
+            handlers = request.app.state.handlers
             if handlers != last_data:
                 last_data = handlers
-                yield (JSONResponse(json.loads(handlers)) if handlers
-                       else JSONResponse([]))
-            await asyncio.sleep(30)
+                yield handlers
+            await asyncio.sleep(3)
 
     return EventSourceResponse(event_generator())
