@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Tuple, Type
 
@@ -21,11 +22,14 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_DAYS: int = 90
     JWT_ALGORITHM: str = 'HS256'
     SECRET_KEY: str
-
-    GP_HOST: str
-    GP_PORT: int
-    GP_DATABASE: str
-    GP_SCHEMA: str
+    USE_GP_COLD_STORE: bool = False
+    GP_HOST: str = ''
+    GP_PORT: int = 5432
+    GP_DATABASE: str = ''
+    GP_SCHEMA: str = ''
+    GP_TABLE: str = ''
+    GP_USERNAME: str = os.getenv('GP_USERNAME', '')
+    GP_PASSWORD: str = os.getenv('GP_PASSWORD', '')
 
     @classmethod
     def settings_customise_sources(
