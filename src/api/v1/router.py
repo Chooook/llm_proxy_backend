@@ -4,15 +4,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
 from loguru import logger
 from pydantic import ValidationError
 from redis.asyncio import Redis
 from sse_starlette.sse import EventSourceResponse
 
+from settings import settings
 from schemas.feedback import FeedbackItem, TaskFeedback
 from schemas.task import Task, TaskCreate, TaskStatus
 from utils.auth_utils import get_current_user
 from utils.redis_utils import set_task_to_queue, update_task_position
+from utils.gp_utils import run_query
 
 FEEDBACK_FILE = Path(__file__).parent / 'feedback.json'
 
@@ -140,3 +143,31 @@ async def handler_stream(request: Request):
             await asyncio.sleep(3)
 
     return EventSourceResponse(event_generator())
+
+
+@router.get("/test_gp")
+async def test_gp_query(schema=settings.GP_SCHEMA,
+                        table="kmaus_user_data",
+                        limit=3):
+    try:
+
+        query = f"select task_id, prompt, status from {schema}.{table} limit {limit};"
+        result = await run_query(query)
+
+        if result:
+            return JSONResponse({
+                "status": "success",
+                "data": [dict(row) for row in result],
+                "message": "GreenPlum connection test successful"
+            })
+
+        return JSONResponse({
+            "status": "success",
+            "message": "Query executed but returned no data"
+        })
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"GreenPlum connection test failed: {str(e)}"
+        )
