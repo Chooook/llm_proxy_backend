@@ -131,16 +131,21 @@ async def submit_feedback(feedback: FeedbackItem):
 
 
 @router.get('/handlers/stream')
-async def handler_stream(request: Request):
+async def available_handlers_stream(request: Request):
     # FIXME: если сервер остановить - frontend зависнет со старыми данными,
     #  доработать обработку ошибок на фронте
     async def event_generator():
         last_data = None
         while True:
-            handlers = request.app.state.handlers
-            if handlers != last_data:
-                last_data = handlers
-                yield handlers
+            handlers = request.app.state.available_handlers
+            configs = request.app.state.handlers_configs
+            handlers_with_configs = {
+                'available_handlers': handlers, 'configs': configs}
+            if handlers_with_configs != last_data:
+                last_data = handlers_with_configs
+                logger.debug(
+                    f'ℹ️ Available handlers quantity updated: {handlers}')
+                yield json.dumps(handlers_with_configs)
             await asyncio.sleep(3)
 
     return EventSourceResponse(event_generator())

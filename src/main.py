@@ -273,11 +273,13 @@ async def lifespan(fastapi_app: FastAPI):
     except RedisError as e:
         logger.error(f'Ошибка redis: {e}')
         raise
-    fastapi_app.state.handlers = []
-    asyncio.create_task(update_handlers(fastapi_app))
+    fastapi_app.state.available_handlers = {}
+    fastapi_app.state.handlers_configs = {}
+    asyncio.create_task(get_available_handlers(fastapi_app))
     asyncio.create_task(cleanup_dlq(fastapi_app.state.redis))
 
     yield
+    await fastapi_app.state.redis.delete('available_handlers')
     if settings.USE_GP_COLD_STORE:
         await cool_save_to_gp
         await write_redis_log
