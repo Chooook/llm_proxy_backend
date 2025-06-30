@@ -11,6 +11,9 @@ from redis.asyncio import Redis
 from schemas.task import Task, TaskCreate, TaskStatus
 
 
+# TODO: add redis pool init here for Depends
+
+
 async def update_task_position(task_id: str, redis: Redis):
     all_tasks = await redis.lrange('task_queue', 0, -1)
     all_tasks.reverse()

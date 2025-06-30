@@ -132,7 +132,8 @@ async def submit_feedback(feedback: FeedbackItem):
 
 @router.get('/handlers/stream')
 async def handler_stream(request: Request):
-    # FIXME: если сервер остановить - frontend зависнет со старыми данными
+    # FIXME: если сервер остановить - frontend зависнет со старыми данными,
+    #  доработать обработку ошибок на фронте
     async def event_generator():
         last_data = None
         while True:
@@ -145,29 +146,29 @@ async def handler_stream(request: Request):
     return EventSourceResponse(event_generator())
 
 
-@router.get("/test_gp")
+@router.get('/test_gp')
 async def test_gp_query(schema=settings.GP_SCHEMA,
-                        table="kmaus_user_data",
+                        table='kmaus_user_data',
                         limit=3):
     try:
 
-        query = f"select task_id, prompt, status from {schema}.{table} limit {limit};"
+        query = f'select task_id, prompt, status from {schema}.{table} limit {limit};'
         result = await run_query(query)
 
         if result:
             return JSONResponse({
-                "status": "success",
-                "data": [dict(row) for row in result],
-                "message": "GreenPlum connection test successful"
+                'status': 'success',
+                'data': [dict(row) for row in result],
+                'message': 'GreenPlum connection test successful'
             })
 
         return JSONResponse({
-            "status": "success",
-            "message": "Query executed but returned no data"
+            'status': 'success',
+            'message': 'Query executed but returned no data'
         })
 
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"GreenPlum connection test failed: {str(e)}"
+            detail=f'GreenPlum connection test failed: {str(e)}'
         )
