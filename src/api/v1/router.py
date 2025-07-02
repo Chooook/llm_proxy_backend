@@ -25,6 +25,8 @@ router = APIRouter(prefix='/api/v1')
 @router.post('/enqueue')
 async def enqueue_task(request: Request, task: TaskCreate):
     user_id = await get_current_user(request, request.app.state.redis)
+    if not task.handler_id or task.handler_id == 'default':
+        raise HTTPException(status_code=405, detail='Invalid handler_id')
     task_id, short_id = await set_task_to_queue(user_id, task, request.app)
     return {'task_id': task_id, 'short_task_id': short_id}
 
