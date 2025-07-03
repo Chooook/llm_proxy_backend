@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime as dt
@@ -29,6 +30,7 @@ async def scan_redis(filename: str, interval: float, pattern: str):
     # TODO: review logic
     # TODO: use fastapi state connection and schemas
     # TODO: move to gp_utils or cold_store_utils
+    # TODO: add async fs support?
     r = Redis(host=settings.HOST,
               port=settings.REDIS_PORT,
               db=settings.REDIS_DB)
@@ -58,8 +60,18 @@ async def scan_redis(filename: str, interval: float, pattern: str):
                 logger.error(f'Error processing key {key_str}: {e}')
                 continue
 
-        with open(filename, 'w') as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
+        existing_data = {}
+
+        if os.path.exists(filename) and os.path.getsize(filename) > 0:
+            try:
+                with open(filename, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+            except (json.JSONDecodeError, IOError) as e:
+                print(f"Ошибка при чтении файла: {e}")
+
+        merged_data = {**existing_data, **data}
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(merged_data, f, indent=2, ensure_ascii=False)
             f.flush()
 
         # Ждём до следующего обновления
@@ -267,8 +279,8 @@ async def lifespan(fastapi_app: FastAPI):
         if settings.USE_GP_COLD_STORE:
             cool_save_to_gp = asyncio.create_task(scan_redis_to_greenplum(
                 table_name=settings.GP_TABLE, interval=60, pattern='task:*'))
-            write_redis_log = asyncio.create_task(scan_redis(
-                filename='redis_log.json', interval=1.0, pattern='task:*'))
+        write_redis_log = asyncio.create_task(scan_redis(
+            filename='redis_log.json', interval=5.0, pattern='task:*'))
 
     except RedisError as e:
         logger.error(f'Ошибка redis: {e}')
@@ -282,7 +294,7 @@ async def lifespan(fastapi_app: FastAPI):
     await fastapi_app.state.redis.delete('available_handlers')
     if settings.USE_GP_COLD_STORE:
         await cool_save_to_gp
-        await write_redis_log
+    await write_redis_log
     await fastapi_app.state.redis.aclose()
 
 
