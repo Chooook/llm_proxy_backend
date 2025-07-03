@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     GP_TABLE: str = ''
     GP_USERNAME: str = os.getenv('GP_USERNAME', '')
     GP_PASSWORD: str = os.getenv('GP_PASSWORD', '')
+    GP_MIN_CONNECTIONS: int = 1
+    GP_MAX_CONNECTIONS: int = 1
+    GP_MAX_INACTIVE_LIFETIME: int = 36000
 
     @classmethod
     def settings_customise_sources(
