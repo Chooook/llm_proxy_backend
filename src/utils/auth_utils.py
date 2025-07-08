@@ -19,7 +19,7 @@ def create_guest_user():
 def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.now() + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
-    to_encode.update({'exp': expire})
+    to_encode.update({'exp': expire})  # FIXME токен обновляется только в redis
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 

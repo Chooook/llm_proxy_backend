@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from redis.asyncio import Redis
 
 from schemas.task import Task, TaskCreate, TaskStatus
+from settings import settings
 
 
 # TODO: add redis pool init here for Depends
@@ -30,7 +31,10 @@ async def update_task_position(task_id: str, redis: Redis):
     if task_data:
         task = Task.model_validate_json(task_data)
         task.current_position = current_pos
-        await redis.setex(f'task:{task_id}', 3600, task.model_dump_json())
+        await redis.setex(
+            f'task:{task_id}',
+            settings.redis_store_seconds,
+            task.model_dump_json())
 
 
 async def set_task_to_queue(user_id: str,
@@ -54,7 +58,9 @@ async def set_task_to_queue(user_id: str,
         task_to_enqueue.status = TaskStatus.PENDING
         async with redis.pipeline() as pipe:
             await redis.setex(
-                f'task:{task_id}', 3600, task_to_enqueue.model_dump_json())
+                f'task:{task_id}',
+                settings.redis_store_seconds,
+                task_to_enqueue.model_dump_json())
             await pipe.lpush('pending_task_queue', task_id)
             await pipe.lpush(f'pending_task_queue:{task.handler_id}', task_id)
             await pipe.execute()
@@ -68,7 +74,9 @@ async def set_task_to_queue(user_id: str,
         task_to_enqueue.status = TaskStatus.QUEUED
         async with redis.pipeline() as pipe:
             await redis.setex(
-                f'task:{task_id}', 3600, task_to_enqueue.model_dump_json())
+                f'task:{task_id}',
+                settings.redis_store_seconds,
+                task_to_enqueue.model_dump_json())
             await pipe.lpush('task_queue', task_id)
             await pipe.lpush(f'task_queue:{task.handler_id}', task_id)
             await pipe.execute()
@@ -175,7 +183,9 @@ async def update_queues(fastapi_app: FastAPI,
                     await pipe.lrem('task_queue', 0, task_id)
                     await pipe.lpush('pending_task_queue', task_id)
                     await pipe.setex(
-                        f'task:{task_id}', 3600, task.model_dump_json())
+                        f'task:{task_id}',
+                        settings.redis_store_seconds,
+                        task.model_dump_json())
                     await pipe.execute()
                 logger.info(
                     f'♻️ Task is pending now: {task_id}, type: {handler_id}')
@@ -200,7 +210,9 @@ async def update_queues(fastapi_app: FastAPI,
             await pipe.lpush('pending_task_queue', task_id)
             await pipe.lpush(f'pending_task_queue:{handler_id}', task_id)
             await pipe.setex(
-                f'task:{task_id}', 3600, task.model_dump_json())
+                f'task:{task_id}',
+                settings.redis_store_seconds,
+                task.model_dump_json())
             await pipe.execute()
         logger.info(
             f'♻️ Task is pending now: {task_id}, type: {handler_id} '
@@ -228,7 +240,9 @@ async def update_queues(fastapi_app: FastAPI,
                 await pipe.lpush('task_queue', task_id)
                 await pipe.lpush(f'task_queue:{handler_id}', task_id)
                 await pipe.setex(
-                    f'task:{task_id}', 3600, task.model_dump_json())
+                    f'task:{task_id}',
+                    settings.redis_store_seconds,
+                    task.model_dump_json())
                 await pipe.execute()
             logger.info(f'♻️ Task recovered: {task_id}, type: {handler_id}')
 

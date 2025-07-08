@@ -51,7 +51,9 @@ async def subscribe_stream_status(request: Request, task_id: str):
             if task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
                 task.finished_at = datetime.now(timezone.utc).isoformat()
                 await redis.setex(
-                    f'task:{task_id}', 86400, task.model_dump_json())
+                    f'task:{task_id}',
+                    settings.redis_store_seconds,
+                    task.model_dump_json())
                 break
             await asyncio.sleep(1)
     return EventSourceResponse(event_generator())
@@ -66,7 +68,10 @@ async def submit_task_feedback(
     if task.user_id != user_id:
         raise HTTPException(status_code=403, detail='Forbidden')
     task.feedback = feedback
-    await redis.setex(f'task:{task_id}', 3600, task.model_dump_json())
+    await redis.setex(
+        f'task:{task_id}',
+        settings.redis_store_seconds,
+        task.model_dump_json())
 
 
 @router.get('/tasks')
