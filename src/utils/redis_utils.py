@@ -129,8 +129,6 @@ async def get_available_handlers(fastapi_app: FastAPI):
                     current_handlers_ids - available_handlers_ids)
 
             if handlers_ids_added or handlers_ids_removed:
-                logger.debug(
-                    f'ℹ️ Handlers updated: {available_handlers}')
                 if handlers_ids_added:
                     logger.debug(
                         f'ℹ️ Handlers added: {handlers_ids_added}')
@@ -144,9 +142,13 @@ async def get_available_handlers(fastapi_app: FastAPI):
                     await redis.get('handlers_configs'))
                 fastapi_app.state.handlers_configs = handlers_configs
 
-            fastapi_app.state.available_handlers = available_handlers
-            await redis.set(
-                'available_handlers', json.dumps(available_handlers))
+            if available_handlers != fastapi_app.state.available_handlers:
+                logger.debug(
+                    f'ℹ️ Available handlers quantity updated: '
+                    f'{available_handlers}')
+                fastapi_app.state.available_handlers = available_handlers
+                await redis.set(
+                    'available_handlers', json.dumps(available_handlers))
 
             await asyncio.sleep(10)
     except asyncio.CancelledError:

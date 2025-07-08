@@ -150,8 +150,6 @@ async def available_handlers_stream(request: Request):
                 'available_handlers': handlers, 'configs': configs}
             if handlers_with_configs != last_data:
                 last_data = handlers_with_configs
-                logger.debug(
-                    f'ℹ️ Available handlers quantity updated: {handlers}')
                 yield json.dumps(handlers_with_configs)
             await asyncio.sleep(3)
 
