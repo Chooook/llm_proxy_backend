@@ -254,7 +254,7 @@ async def update_queues(fastapi_app: FastAPI,
 async def cleanup_dlq(redis: Redis):
     while True:
         await asyncio.sleep(3600)
-        logger.info('🧹 Очистка dead_letters...')
+        logger.info('🧹 Cleaning dead_letters...')
         dlq_length = await redis.llen('dead_letters')
         if dlq_length > 50:
             tasks = await redis.lrange('dead_letters', 0, -1)

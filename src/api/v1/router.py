@@ -91,7 +91,7 @@ async def list_queued_tasks_by_user(request: Request):
                     continue
                 task = Task.model_validate_json(raw_task)
             except ValidationError as e:
-                logger.warning(f'Ошибка валидации задачи {task_id}: {e}')
+                logger.warning(f'⚠️ Task validation error {task_id}: {e}')
                 continue
             if task.user_id == user_id:
                 tasks.append(task)

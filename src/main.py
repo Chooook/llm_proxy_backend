@@ -61,7 +61,7 @@ async def scan_redis(filename: str, interval: float, pattern: str):
 
                 data[key_str] = value_data
             except Exception as e:
-                logger.error(f'Error processing key {key_str}: {e}')
+                logger.error(f'‼️ Error processing key {key_str}: {e}')
                 continue
 
         existing_data = {}
@@ -119,21 +119,22 @@ async def scan_redis_to_greenplum(table_name: str, interval: float, pattern: str
     try:
         # Создаем таблицу
         await run_query(create_table_query)
-        logger.info(f'Table {settings.GP_SCHEMA}.{table_name} created or already exists')
+        logger.info(f'ℹ️ Table {settings.GP_SCHEMA}.{table_name} '
+            f'created or already exists')
 
         # Создаем индексы
         try:
             await run_query(f'CREATE INDEX idx_{table_name}_task_id ON {settings.GP_SCHEMA}.{table_name} (task_id)')
         except Exception as e:
-            logger.warning(f'Possible duplicate index: {e}')
+            logger.warning(f'⚠️ Possible duplicate index: {e}')
 
         try:
             await run_query(f'CREATE INDEX idx_{table_name}_status ON {settings.GP_SCHEMA}.{table_name} (status)')
         except Exception as e:
-            logger.warning(f'Possible duplicate index: {e}')
+            logger.warning(f'⚠️ Possible duplicate index: {e}')
 
     except Exception as e:
-        logger.error(f'Error creating table: {e}')
+        logger.error(f'‼️ Error creating table: {e}')
         raise
 
     def parse_datetime(dt_str):
@@ -146,7 +147,7 @@ async def scan_redis_to_greenplum(table_name: str, interval: float, pattern: str
             try:
                 return dt.strptime(dt_str, '%Y-%m-%dT%H:%M:%S.%f%z')
             except ValueError:
-                logger.warning(f'Failed to parse datetime "{dt_str}"')
+                logger.warning(f'⚠️ Failed to parse datetime "{dt_str}"')
                 return None
 
     def extract_json_fields(data: dict):
@@ -174,7 +175,7 @@ async def scan_redis_to_greenplum(table_name: str, interval: float, pattern: str
             result = await run_query(check_query, (task_id,))
             return not result or result[0].get('status') != 'completed' or result[0].get('feedback') != 'neutral'
         except Exception as e:
-            logger.error(f'Error checking record: {e}')
+            logger.error(f'‼️ Error checking record: {e}')
             return True
 
     while True:
@@ -195,13 +196,13 @@ async def scan_redis_to_greenplum(table_name: str, interval: float, pattern: str
                     try:
                         task_data = json.loads(value.decode('utf-8'))
                     except Exception as e:
-                        logger.error(f'Invalid JSON for key {key_str}: {e}')
+                        logger.error(f'‼️ Invalid JSON for key {key_str}: {e}')
                         stats['errors'] += 1
                         continue
 
                     task_id = task_data.get('task_id')
                     if not task_id:
-                        logger.warning(f'Missing task_id for key {key_str}')
+                        logger.warning(f'⚠️ Missing task_id for key {key_str}')
                         stats['errors'] += 1
                         continue
 
@@ -252,17 +253,18 @@ async def scan_redis_to_greenplum(table_name: str, interval: float, pattern: str
                     stats['updated' if await should_update_record(task_id, current_status) else 'new'] += 1
 
                 except Exception as e:
-                    logger.error(f'Error processing key {key_str}: {e}')
+                    logger.error(f'‼️ Error processing key {key_str}: {e}')
                     stats['errors'] += 1
                     continue
 
             logger.info(
-                f'Processed stats: {stats["new"]} new, {stats["updated"]} updated, '
+                f'ℹ️ Processed stats: {stats["new"]} new, '
+                f'{stats["updated"]} updated, '
                 f'{stats["skipped"]} skipped, {stats["errors"]} errors'
             )
 
         except Exception as e:
-            logger.error(f'Redis scan error: {e}')
+            logger.error(f'‼️ Redis scan error: {e}')
             await asyncio.sleep(5)
             continue
 
@@ -287,7 +289,7 @@ async def lifespan(fastapi_app: FastAPI):
             filename='redis_log.json', interval=5.0, pattern='task:*'))
 
     except RedisError as e:
-        logger.error(f'Ошибка redis: {e}')
+        logger.error(f'‼️ Redis error: {e}')
         raise
     fastapi_app.state.available_handlers = {}
     fastapi_app.state.handlers_configs = {}
@@ -339,7 +341,7 @@ async def log_requests(request: Request, call_next):
     process_time = (time.time() - start_time) * 1000
 
     log_message = (
-        f'{request.client.host}:{request.client.port} - '
+        f'ℹ️ {request.client.host}:{request.client.port} - '
         f'{request.method} {request.url.path} '
         f'HTTP/{request.scope["http_version"]} '
         f'{response.status_code}'

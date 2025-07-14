@@ -30,7 +30,7 @@ async def run_query(query, params=()):
         async with get_pg_conn() as conn:
             return await conn.fetch(query, *params)
     except asyncpg.PostgresError as e:
-        logger.error(f'⚠️ GP query failed: {e}')
+        logger.error(f'‼️ GP query failed: {e}')
         raise
 
 
@@ -90,7 +90,7 @@ def check_kerberos_ticket() -> bool:
                     return datetime.now() + timedelta(minutes=5) < expiry_time
         return False
     except Exception as e:
-        logger.error(f'⚠️ Kerberos ticket check error: {e}')
+        logger.error(f'‼️ Kerberos ticket check error: {e}')
         return False
 
 
@@ -102,17 +102,17 @@ def renew_kerberos_ticket() -> bool:
             text=True
         )
         if result.returncode != 0:
-            logger.error(f'⚠️ Kerberos ticket renew error: {result.stderr}')
+            logger.error(f'‼️ Kerberos ticket renew error: {result.stderr}')
             return False
 
         # check if ticket is valid after renew
         if not check_kerberos_ticket():
-            logger.error('⚠️ Ticket is invalid after renew!')
+            logger.error('‼️ Ticket is invalid after renew!')
             return False
 
-        logger.info('ℹ️ Kerberos ticker renewed successfully')
+        logger.info('♻️ Kerberos ticker renewed successfully')
         return True
 
     except Exception as e:
-        logger.error(f'⚠️ Kerberos ticket renewal critical error: {e}')
+        logger.error(f'‼️ Kerberos ticket renewal critical error: {e}')
         return False
