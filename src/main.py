@@ -15,8 +15,12 @@ from redis.asyncio import Redis
 from api.v1.router import router as v1_router
 from settings import settings
 from utils.auth_utils import renew_token, store_new_token
-from utils.gp_utils import run_query
 from utils.redis_utils import cleanup_dlq, get_available_handlers
+
+if settings.GP_SINGLE_CONNECTION:
+    from utils.single_connection_gp_utils import run_query
+else:
+    from utils.gp_utils import run_query
 
 FRONTEND_URL = f'http://{settings.HOST}:{settings.FRONTEND_PORT}'
 

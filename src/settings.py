@@ -24,14 +24,16 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_DAYS: int = 90
     JWT_ALGORITHM: str = 'HS256'
     SECRET_KEY: str
+
     USE_GP_COLD_STORE: bool = False
+    GP_SINGLE_CONNECTION: bool = True
     GP_HOST: str = ''
     GP_PORT: int = 5432
     GP_DATABASE: str = ''
     GP_SCHEMA: str = ''
     GP_TABLE: str = ''
     GP_USERNAME: str = os.getenv('GP_USERNAME', '')
-    GP_PASSWORD: str = os.getenv('GP_PASSWORD', '')
+    GP_PASSWORD: str = os.getenv('GP_PASSWORD', '')  # TODO: is needed?
     GP_MIN_CONNECTIONS: int = 1
     GP_MAX_CONNECTIONS: int = 1
     GP_MAX_INACTIVE_LIFETIME: int = 36000
