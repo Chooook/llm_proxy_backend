@@ -3,7 +3,6 @@ from functools import cached_property
 from pathlib import Path
 from typing import Tuple, Type
 
-from pydantic import Field
 from pydantic_settings import (BaseSettings, PydanticBaseSettingsSource,
                                SettingsConfigDict, YamlConfigSettingsSource)
 
@@ -20,7 +19,7 @@ class Settings(BaseSettings):
     FRONTEND_PORT: int = 5000
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
-    REDIS_STORE_DAYS: Field(default=7, gt=0)
+    REDIS_EXPIRE_DAYS: int = 7
 
     ACCESS_TOKEN_EXPIRE_DAYS: int = 90
     JWT_ALGORITHM: str = 'HS256'
@@ -39,7 +38,7 @@ class Settings(BaseSettings):
 
     @cached_property
     def redis_store_seconds(self):
-        return self.REDIS_STORE_DAYS * 24 * 60 * 60
+        return self.REDIS_EXPIRE_DAYS * 24 * 60 * 60
 
     @classmethod
     def settings_customise_sources(
